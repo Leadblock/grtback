@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="UTF-8">
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+	<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+	<style>
+		.nav-item {
+			padding-left: 0;
+			padding-right: 1rem;
+		}
+		a.nav-link {
+			display:inline-block;
+		}
+		.content {
+			padding: 1.5rem;
+		}
+		.card-body {
+			min-height: 305px;
+		}
+		p {
+			word-break: break-all;
+		}
+		.card {
+			margin-bottom:10px;
+		}
+		textarea.form-control {
+			border-color:#eee;
+		}
+		.nav-link {
+			font-size:18px;
+		}
+	</style>
+	<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+	<script src="https://cdn.bootcss.com/jquery/3.2.1/jquery.slim.min.js"></script>
+	<script src="https://cdn.bootcss.com/popper.js/1.12.9/umd/popper.min.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+	<script src="https://cdn.bootcdn.net/ajax/libs/web3/1.3.0/web3.min.js"></script>
+	<script src="https://unpkg.com/@metamask/detect-provider/dist/detect-provider.min.js"></script>
+</head>
+<body>
+	<div id="app">
+		<nav class="navbar navbar-expand-sm navbar-dark bg-primary fixed-top">
+			<div class="container-md">
+				<ul class="navbar-nav" style="flex-direction:row">
+					<li class="nav-item">
+						<a class="nav-link" v-bind:class="{active:nTabIndex == 0}" aria-current="page" href="#" @click="showTabIndex(0)">批量转账</a>
+					</li>
+					<li class="nav-item">
+						<a class="nav-link" v-bind:class="{active:nTabIndex == 1}" aria-current="page" href="#" @click="showTabIndex(1)">白名单管理</a>
+					</li>
+				</ul>
+				<button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarItems" aria-controls="navbarItems" aria-expanded="false" aria-label="Toggle">
+					<span class="navbar-toggler-icon"></span>
+				</button>
+				<div class="collapse navbar-collapse" id="navbarItems">
+					<ul class="navbar-nav pe-3">
+						<li class="nav-item">
+							<a class="nav-link" href="#" aria-disabled="true" @click="switchChain()">[{{chainName}}]</a><!--
+							<button v-if="chainId!=chainIdWorkin" type="button" class="btn btn-outline-info btn-sm" @click="switchChain()">切换链</button>-->
+						</li>
+						<li class="nav-item">
+							<button v-if="accountAdderss.length <= 0" type="button" class="btn btn-success btn-block" @click="connectWallet()">链接钱包</button>
+							<a v-if="accountAdderss.length > 0" class="nav-link disabled" href="#" tabindex="-1" aria-disabled="true">[{{accountLogin}}]</a>
+						</li>
+					</ul>
+				</div>
+			</div>
+		</nav>
+
+		<div class="container-sm content">
+			<div class="row" v-if="nTabIndex == 0" style="margin-top:60px">
+				<div class="col-md-12">
+					<p>操作管理: {{accountAdderss}}  <a v-show="isWhitelist">[白名单]</a><a v-show="!isWhitelist">[无权限]</a></p>
+					<p>操作记录: {{testtoast}}</p>
+				</div>
+				<div class="col-md-6">
+					<div class="card bg-default">
+						<h6 class="card-header">余额：{{balanceOf}} GRT</h6>
+						<div class="card-body">
+							<p class="card-text">
+								<textarea v-model="balancelistvalue" class="form-control" rows="8"></textarea>
+							</p>
+							<button type="button" class="btn btn-success btn-block btn-sm" @click="makeBatchTransfer()">批量打币</button>
+						</div>
+					</div>
+				</div>
+				<div class="col-md-6">
+					<div class="card bg-default">
+						<h6 class="card-header">最近操作</h6>
+						<div class="card-body">
+							<p>完成块：123123123</p>
+							<p>完成hash：0x8cdb144fa3f927eaab620afa29d04140a279734ac956c8efc47050f141b77b76</p>
+						</div>
+					</div>
+				</div>
+			</div>
+			<div class="row" v-if="nTabIndex == 1" style="margin-top:60px">
+				<div class="col-md-12">
+					<p>操作管理: {{accountAdderss}} <a v-show="isOwner">[超管]</a><a v-show="!isOwner">[无权限]</a></p>
+					<p>操作记录: {{testtoast}}</p>
+				</div>
+				<div class="col-md-6">
+					<div class="card bg-default">
+						<h6 class="card-header">现有白名单列表</h6>
+						<div class="card-body">
+							<p class="card-text">
+								<ul class="list-group list-group-flush" v-for="item in whitelist">
+									<li class="list-group-item">{{item}}</li>
+								</ul>
+							</p>
+						</div>
+					</div>
+				</div>
+				<div class="col-md-6">
+					<div class="card bg-default">
+						<h6 class="card-header">新增钱包列表</h6>
+						<div class="card-body">
+							<p class="card-text">
+								<textarea v-model="whiteactionvalue" class="form-control" rows="8"></textarea>
+							</p>
+							<button type="button" class="btn btn-success btn-sm" @click="addWhitelist()">批量增加</button>
+							<button type="button" class="btn btn-success btn-sm" @click="removeWhitelist()">批量删除</button>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+		  
+	</div>
+</body>
+
+<script>
+	const GRTTOKEN_ABI = [
+		{ "name": "decimals", "type": "function", "stateMutability": "view", "inputs": [], "outputs": [{ "internalType": "uint8", "name": "", "type": "uint8" }] },
+		{ "name": "name", "type": "function", "stateMutability": "view", "inputs": [], "outputs": [{ "internalType": "string", "name": "", "type": "string" }] },
+		{ "name": "owner", "type": "function", "stateMutability": "view", "inputs": [], "outputs": [{ "internalType": "address", "name": "", "type": "address" }] },
+		{ "name": "symbol", "type": "function", "stateMutability": "view", "inputs": [], "outputs": [{ "internalType": "string", "name": "", "type": "string" }] },
+		{ "name": "balanceOf", "type": "function", "stateMutability": "view", "inputs": [{ "internalType": "address", "name": "account", "type": "address" }], "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }] },
+		{ "name": "totalSupply", "type": "function", "stateMutability": "view", "inputs": [], "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }] },
+		{ "name": "queryWhitelist", "type": "function", "stateMutability": "view", "inputs": [{ "internalType": "uint256", "name": "_id", "type": "uint256" }], "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }, { "internalType": "address", "name": "", "type": "address" }] },
+		{ "name": "addWhitelist", "type": "function", "stateMutability": "nonpayable", "inputs": [{ "internalType": "address[]", "name": "_list", "type": "address[]" }], "outputs": [] },
+		{ "name": "removeWhitelist", "type": "function", "stateMutability": "nonpayable", "inputs": [{ "internalType": "address[]", "name": "_list", "type": "address[]" }], "outputs": [] },
+		{ "name": "allowance", "type": "function", "stateMutability": "view", "inputs": [{ "internalType": "address", "name": "owner", "type": "address" }, { "internalType": "address", "name": "spender", "type": "address" }], "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }] },
+		{ "name": "approve", "type": "function", "stateMutability": "nonpayable", "inputs": [{ "internalType": "address", "name": "spender", "type": "address" }, { "internalType": "uint256", "name": "amount", "type": "uint256" }], "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }] },
+	]
+
+	const GRTUTILS_ABI = [
+		{ "name": "", "type": "constructor", "stateMutability": "nonpayable", "inputs": [] },
+		{ "name": "batchTransfer", "type": "function", "stateMutability": "nonpayable", "inputs": [{ "internalType": "address", "name": "_token", "type": "address" }, { "internalType": "address[]", "name": "wallets", "type": "address[]" }, { "internalType": "uint256[]", "name": "amount", "type": "uint256[]" }], "outputs": [] },
+		{ "name": "tokenInfo", "type": "function", "stateMutability": "view", "inputs": [{ "internalType": "address", "name": "_token", "type": "address" }], "outputs": [{ "internalType": "string", "name": "name", "type": "string" }, { "internalType": "string", "name": "symbol", "type": "string" }, { "internalType": "uint8", "name": "decimals", "type": "uint8" }, { "internalType": "address", "name": "owner", "type": "address" }] },
+		{ "name": "whitelist", "type": "function", "stateMutability": "view", "inputs": [{ "internalType": "address", "name": "_token", "type": "address" }], "outputs": [{ "internalType": "uint256", "name": "ulen", "type": "uint256" }, { "internalType": "address[]", "name": "white", "type": "address[]" }] }
+	]
+
+	vm = new Vue({
+		el: '#app',
+		data() {
+			return {
+				ZEROADDRESS: '0x0000000000000000000000000000000000000000',
+				GRTTOKEN: '0xe08Ec34123f208580c411837B2afa420Da367ad6',
+				GRTUTILS: '0x7b48cA2e5cB4F47Ba80545CD37656dC19112b13B',
+				// RPCURL : 'https://data-seed-prebsc-1-s2.binance.org:8545/'
+				web3: null,
+				grt: null,
+				provider: null,
+				accountAdderss: '',
+				accountLogin: '',
+				chainName: '',
+				chainId: 0,
+				chainIdWorkin: 66,
+				grtName: '',
+				grtSymbol: '',
+				grtDecimals: 0,
+				grtOwner: '',
+
+				gasPrice: '10.001',
+				whitelist: [],
+				whiteactionvalue: "",
+				balancelistvalue: "",
+				balanceOf: 0,
+				allowance: 0,
+				totalSupply: 0,
+
+				testtoast: '无操作',
+				nTabIndex: 0,
+				isOwner: false,
+				isWhitelist: false,
+			}
+		},
+
+		mounted: function () {
+
+			this.init_env()
+
+		},
+
+		methods: {
+			init_env: async function () {
+
+				this.provider = await detectEthereumProvider()
+
+				this.web3 = new Web3(this.provider);
+				await this.provider.on('accountsChanged', this.handleAccountsChanged);
+				await this.provider.on('chainChanged', this.handleChainChanged);
+
+				this.grt = new this.web3.eth.Contract(GRTTOKEN_ABI, this.GRTTOKEN);
+				this.utils = new this.web3.eth.Contract(GRTUTILS_ABI, this.GRTUTILS);
+
+				const chainId = await this.provider.request({ method: 'eth_chainId' });
+				this.handleChainChanged(chainId);
+
+				const accounts = await this.provider.request({ method: 'eth_requestAccounts' });
+				this.handleAccountsChanged(accounts);
+
+				this.balancelistvalue = "0x2499E7E1475625Eb269357d2D9cEf798719113c5, 0.3";
+
+
+			},
+			handleAccountsChanged: function (accounts) {
+				console.log('handleAccountsChanged:' + accounts);
+				this.accountAdderss = this.web3.utils.toChecksumAddress(accounts[0]);
+				this.accountLogin = this.accountAdderss.substring(0, 6) + '...' + this.accountAdderss.substring(38);
+				if (this.chainId == this.chainIdWorkin) {
+					this.obtainWalletInfo();
+				}
+			},
+			handleChainChanged: function (chainId) {
+				console.log('handleChainChanged:' + chainId);
+				this.chainId = parseInt(chainId);
+				if (this.chainId == 0x61) {
+					this.chainName = 'BSCTEST';
+				} else if (this.chainId == 0x38) {
+					this.chainName = 'BSC';
+				} else if (this.chainId == 0x41) {
+					this.chainName = 'OKCTEST';
+				} else if (this.chainId == 0x42) {
+					this.chainName = 'OKC';
+				} else {
+					this.chainName = 'Unknown' + this.chainId;
+				}
+
+				if (this.chainId == this.chainIdWorkin) {
+					this.obtainTokeninfo();
+					this.obtainWhitelist();
+				}
+			},
+			connectWallet: async function () {
+				await this.provider.request({ method: 'eth_requestAccounts' });
+			},
+			switchChain: async function () {
+				await this.provider.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: '0x61' }], });
+			},
+			obtainTokeninfo: async function () {
+				var tokeninfo = await this.utils.methods.tokenInfo(this.GRTTOKEN).call();
+				console.log(tokeninfo);
+			},
+			obtainWhitelist: async function () {
+				var whitedata = await this.utils.methods.whitelist(this.GRTTOKEN).call();
+				console.log(whitedata);
+				this.whitelist = whitedata.white;
+				this.checkWhitelist();
+			},
+			checkWhitelist: async function () {
+				this.isWhitelist = false;
+				this.whitelist.forEach(element => {
+					// console.log('check whitelist', element, this.accountAdderss);
+					if (element == this.accountAdderss) {
+						this.isWhitelist = true;
+					}
+				});
+			},
+			obtainWalletInfo: async function () {
+				var balanceOf = await this.grt.methods.balanceOf(this.accountAdderss).call();
+				var totalSupply = await this.grt.methods.totalSupply().call();
+				var allowance = await this.grt.methods.allowance(this.accountAdderss, this.GRTUTILS).call();
+				var owner = await this.grt.methods.owner().call();
+
+				console.log('obtainWalletInfo', balanceOf, totalSupply, allowance);
+
+				this.balanceOf = await this.web3.utils.fromWei(balanceOf, 'ether');
+				this.allowance = await this.web3.utils.fromWei(allowance, 'ether');
+				this.totalSupply = await this.web3.utils.fromWei(totalSupply, 'ether');
+				console.log('check isOwner', owner, this.accountAdderss);
+				this.isOwner = (owner == this.accountAdderss);
+				this.checkWhitelist();
+			},
+			makeAddressllist: async function (value) {
+				walletlines = value.split(/[\s\n]/);
+				walletlist = []
+				for (var element of walletlines) {
+					element = element.replace(/^\s+|\s+$/g, "")
+					if (element.length < 20) {
+						continue
+					}
+					element = this.web3.utils.toChecksumAddress(element)
+					walletlist.push(element);
+				}
+				return walletlist;
+			},
+			makeTransactionParams: async function (from, to, data) {
+				var gasValue = await this.web3.utils.toWei(this.gasPrice, 'gwei');
+				var gasValueHex = await this.web3.utils.toHex(gasValue);
+				console.log('gasValue', gasValue, gasValueHex);
+
+				var params = [
+					{
+						from: from,
+						to: to,
+						// gasPrice: gasValueHex, // 10000000000000
+						value: 0, // 2441406250
+						data: data,
+					},
+				];
+				return params;
+			},
+			addWhitelist: async function () {
+				var wallets = await this.makeAddressllist(this.whiteactionvalue);
+				console.log(wallets);
+
+				var data = this.grt.methods.addWhitelist(wallets).encodeABI();
+				var params = await this.makeTransactionParams(this.accountAdderss, this.GRTTOKEN, data);
+
+				this.sendTransaction(params, '添加白名单');
+			},
+			removeWhitelist: async function () {
+				var wallets = await this.makeAddressllist(this.whiteactionvalue);
+				console.log(wallets);
+
+				var data = this.grt.methods.removeWhitelist(wallets).encodeABI();
+				var params = await this.makeTransactionParams(this.accountAdderss, this.GRTTOKEN, data);
+
+				this.sendTransaction(params, '删除白名单');
+			},
+			makeApprove: async function () {
+				var value = await this.web3.utils.toWei(this.totalSupply, 'ether');
+				var hexvalue = await this.web3.utils.toHex(value);
+				console.log(value, hexvalue);
+
+				var data = this.grt.methods.approve(this.GRTUTILS, hexvalue).encodeABI();
+				var params = await this.makeTransactionParams(this.accountAdderss, this.GRTTOKEN, data);
+
+				this.sendTransaction(params, '钱包授权');
+			},
+			makeTokenAddressllist: async function (value) {
+				walletlines = value.split(/[\n]/);
+				console.log(walletlines);
+				walletlist = []
+				valuelist = []
+				for (var element of walletlines) {
+					var itemsp = element.split(/[,]/);
+					console.log('element', element, itemsp);
+					var addr = itemsp[0];
+					var value = itemsp[1];
+					addr = addr.replace(/^\s+|\s+$/g, "")
+					console.log(addr, value);
+					if (addr.length < 20) {
+						continue
+					}
+					value = value.replace(/^\s+|\s+$/g, "")
+					value = await this.web3.utils.toWei(value, 'ether');
+					addr = this.web3.utils.toChecksumAddress(addr)
+					walletlist.push(addr);
+					valuelist.push(value);
+				}
+				return { wallets: walletlist, values: valuelist };
+			},
+			makeBatchTransfer: async function () {
+				var walletdata = await this.makeTokenAddressllist(this.balancelistvalue);
+				console.log(walletdata);
+
+				var data = this.utils.methods.batchTransfer(this.GRTTOKEN, walletdata.wallets, walletdata.values).encodeABI();
+				var params = await this.makeTransactionParams(this.accountAdderss, this.GRTUTILS, data);
+
+				this.sendTransaction(params, '批量转账');
+			},
+			sendTransaction: async function (params, title) {
+
+				this.showToast(title, '拉起钱包签名');
+
+				this.provider.request({ method: 'eth_sendTransaction', params, })
+					.then((result) => {
+						console.log(result);
+						this.showToast(title, '交易:' + result);
+
+						setTimeout(this.checkTransaction, 2000, title, result);
+					})
+					.catch((error) => {
+						console.log(error);
+						this.showToast(title, '交易错误: ' + error.code + ' 描述: ' + error.message);
+					});
+			},
+			checkTransaction: async function (title, txhash) {
+				console.log('checkTransaction', txhash)
+				var txinfo = await this.web3.eth.getTransaction(txhash);
+				console.log('checkTransaction', txinfo)
+				if (txinfo.blockNumber > 0) {
+					this.showToast(title, '成功:' + txinfo.blockNumber);
+				} else {
+					setTimeout(this.checkTransaction, 2000, title, txhash);
+				}
+			},
+			showToast: async function (title, text) {
+				this.testtoast = title + ': ' + text;
+			},
+			showTabIndex: async function (index) {
+				this.nTabIndex = index;
+			},
+		},
+	})
+</script>
+
+</html>
