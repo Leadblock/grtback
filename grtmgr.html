@@ -82,16 +82,18 @@
 							<p class="card-text">
 								<textarea v-model="balancelistvalue" class="form-control" rows="8"></textarea>
 							</p>
-							<button type="button" class="btn btn-success btn-block btn-sm" @click="makeBatchTransfer()">批量打币</button>
+							<button type="button" class="btn btn-success btn-block btn-sm" v-show="allowance<totalSupply" @click="makeApprove()">授权</button>
+							<button type="button" class="btn btn-success btn-block btn-sm" v-show="allowance>=totalSupply" @click="makeBatchTransfer()">批量打币</button>
 						</div>
 					</div>
 				</div>
 				<div class="col-md-6">
 					<div class="card bg-default">
-						<h6 class="card-header">最近操作</h6>
+						<h6 class="card-header">操作面板</h6>
 						<div class="card-body">
-							<p>完成块：123123123</p>
-							<p>完成hash：0x8cdb144fa3f927eaab620afa29d04140a279734ac956c8efc47050f141b77b76</p>
+							<p>操作管理: {{btxhash}}</p>
+							<p>操作结果: {{btxblocknumber}}</p>
+							<p></p>
 						</div>
 					</div>
 				</div>
@@ -182,6 +184,9 @@
 				allowance: 0,
 				totalSupply: 0,
 
+				btxhash:'',
+				btxblocknumber:0,
+
 				testtoast: '无操作',
 				nTabIndex: 0,
 				isOwner: false,
@@ -213,7 +218,7 @@
 				const accounts = await this.provider.request({ method: 'eth_requestAccounts' });
 				this.handleAccountsChanged(accounts);
 
-				this.balancelistvalue = "0x2499E7E1475625Eb269357d2D9cEf798719113c5, 0.3";
+				// this.balancelistvalue = "0x2499E7E1475625Eb269357d2D9cEf798719113c5, 0.3";
 
 
 			},
@@ -372,9 +377,15 @@
 				var data = this.utils.methods.batchTransfer(this.GRTTOKEN, walletdata.wallets, walletdata.values).encodeABI();
 				var params = await this.makeTransactionParams(this.accountAdderss, this.GRTUTILS, data);
 
-				this.sendTransaction(params, '批量转账');
+				async function onFinishMakeBatchTransfer(txhash) {
+					console.log('onFinishMakeBatchTransfer', txhash);
+					this.btxhash = txhash;
+					this.btxblocknumber = txhash.blockNumber;
+				}
+
+				this.sendTransaction(params, '批量转账', onFinishMakeBatchTransfer);
 			},
-			sendTransaction: async function (params, title) {
+			sendTransaction: async function (params, title, callback) {
 
 				this.showToast(title, '拉起钱包签名');
 
@@ -383,19 +394,20 @@
 						console.log(result);
 						this.showToast(title, '交易:' + result);
 
-						setTimeout(this.checkTransaction, 2000, title, result);
+						setTimeout(this.checkTransaction, 2000, title, result, callback);
 					})
 					.catch((error) => {
 						console.log(error);
 						this.showToast(title, '交易错误: ' + error.code + ' 描述: ' + error.message);
 					});
 			},
-			checkTransaction: async function (title, txhash) {
+			checkTransaction: async function (title, txhash, callback) {
 				console.log('checkTransaction', txhash)
 				var txinfo = await this.web3.eth.getTransaction(txhash);
 				console.log('checkTransaction', txinfo)
 				if (txinfo.blockNumber > 0) {
 					this.showToast(title, '成功:' + txinfo.blockNumber);
+					callback(txinfo);
 				} else {
 					setTimeout(this.checkTransaction, 2000, title, txhash);
 				}
