@@ -82,18 +82,19 @@
 							<p class="card-text">
 								<textarea v-model="balancelistvalue" class="form-control" rows="8"></textarea>
 							</p>
-							<button type="button" class="btn btn-success btn-block btn-sm" v-show="allowance<totalSupply" @click="makeApprove()">授权</button>
+							<button type="button" class="btn btn-success btn-block btn-sm" v-show="allowance<totalSupply" @click="makeApprove()">授权操作</button>
 							<button type="button" class="btn btn-success btn-block btn-sm" v-show="allowance>=totalSupply" @click="makeBatchTransfer()">批量打币</button>
 						</div>
 					</div>
 				</div>
 				<div class="col-md-6">
 					<div class="card bg-default">
-						<h6 class="card-header">操作面板</h6>
+						<h6 class="card-header">最近操作</h6>
 						<div class="card-body">
-							<p>操作管理: {{btxhash}}</p>
-							<p>操作结果: {{btxblocknumber}}</p>
-							<p></p>
+							<p>钱包总数: {{bwalletlenth}}</p>
+							<p>转账总和: {{bwalletamount}}</p>
+							<p>交易hash: {{btxhash}}</p>
+							<p>交易结果: <span v-show="btxblocknumber > 0">成功在区块 {{btxblocknumber}} 上</span> <span v-show="btxblocknumber == 0">等待中。。。</span></p>
 						</div>
 					</div>
 				</div>
@@ -160,8 +161,8 @@
 		data() {
 			return {
 				ZEROADDRESS: '0x0000000000000000000000000000000000000000',
-				GRTTOKEN: '0xe08Ec34123f208580c411837B2afa420Da367ad6',
-				GRTUTILS: '0x7b48cA2e5cB4F47Ba80545CD37656dC19112b13B',
+				GRTTOKEN: '0xB2E23000707b0AA582cb7550745F62A1eA4cc92C',
+				GRTUTILS: '0x4C6557dC8011f90Fe4cF4Fd0cb2f468460A2b54a',
 				// RPCURL : 'https://data-seed-prebsc-1-s2.binance.org:8545/'
 				web3: null,
 				grt: null,
@@ -170,13 +171,13 @@
 				accountLogin: '',
 				chainName: '',
 				chainId: 0,
-				chainIdWorkin: 66,
+				chainIdWorkin: 0x42,
 				grtName: '',
 				grtSymbol: '',
 				grtDecimals: 0,
 				grtOwner: '',
 
-				gasPrice: '10.001',
+				gasPrice: '0.15',
 				whitelist: [],
 				whiteactionvalue: "",
 				balancelistvalue: "",
@@ -185,7 +186,9 @@
 				totalSupply: 0,
 
 				btxhash:'',
-				btxblocknumber:0,
+				btxblocknumber:-1,
+				bwalletlenth:0,
+				bwalletamount:0,
 
 				testtoast: '无操作',
 				nTabIndex: 0,
@@ -218,7 +221,7 @@
 				const accounts = await this.provider.request({ method: 'eth_requestAccounts' });
 				this.handleAccountsChanged(accounts);
 
-				// this.balancelistvalue = "0x2499E7E1475625Eb269357d2D9cEf798719113c5, 0.3";
+				this.balancelistvalue = "0x2499E7E1475625Eb269357d2D9cEf798719113c5, 0.3";
 
 
 			},
@@ -254,7 +257,7 @@
 				await this.provider.request({ method: 'eth_requestAccounts' });
 			},
 			switchChain: async function () {
-				await this.provider.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: '0x61' }], });
+				await this.provider.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: '0x42' }], });
 			},
 			obtainTokeninfo: async function () {
 				var tokeninfo = await this.utils.methods.tokenInfo(this.GRTTOKEN).call();
@@ -326,7 +329,19 @@
 				var data = this.grt.methods.addWhitelist(wallets).encodeABI();
 				var params = await this.makeTransactionParams(this.accountAdderss, this.GRTTOKEN, data);
 
-				this.sendTransaction(params, '添加白名单');
+				async function onBeginAddWhitelist(txhash) {
+					console.log('onBeginAddWhitelist', txhash);
+					// vm.btxhash = txhash;
+				}
+
+				async function onFinishAddWhitelist(txinfo) {
+					console.log('onFinishAddWhitelist', txinfo);
+					// vm.btxhash = txinfo.hash;
+					// vm.btxblocknumber = txinfo.blockNumber;
+					vm.obtainWhitelist();
+				}
+
+				this.sendTransaction(params, '添加白名单', onBeginAddWhitelist, onFinishAddWhitelist);
 			},
 			removeWhitelist: async function () {
 				var wallets = await this.makeAddressllist(this.whiteactionvalue);
@@ -335,7 +350,19 @@
 				var data = this.grt.methods.removeWhitelist(wallets).encodeABI();
 				var params = await this.makeTransactionParams(this.accountAdderss, this.GRTTOKEN, data);
 
-				this.sendTransaction(params, '删除白名单');
+				async function onBeginRemoveWhitelist(txhash) {
+					console.log('onBeginRemoveWhitelist', txhash);
+					// vm.btxhash = txhash;
+				}
+
+				async function onFinishRemoveWhitelist(txinfo) {
+					console.log('onFinishRemoveWhitelist', txinfo);
+					// vm.btxhash = txinfo.hash;
+					// vm.btxblocknumber = txinfo.blockNumber;
+					vm.obtainWhitelist();
+				}
+
+				this.sendTransaction(params, '删除白名单', onBeginRemoveWhitelist, onFinishRemoveWhitelist);
 			},
 			makeApprove: async function () {
 				var value = await this.web3.utils.toWei(this.totalSupply, 'ether');
@@ -345,26 +372,53 @@
 				var data = this.grt.methods.approve(this.GRTUTILS, hexvalue).encodeABI();
 				var params = await this.makeTransactionParams(this.accountAdderss, this.GRTTOKEN, data);
 
-				this.sendTransaction(params, '钱包授权');
+				this.btxhash = '';
+				this.btxblocknumber = 0;
+				this.bwalletlenth = "钱包授权中";
+				this.bwalletamount = 0
+
+				async function onBeginMakeApprove(txhash) {
+					console.log('onBeginMakeApprove', txhash);
+					vm.btxhash = txhash;
+				}
+
+				async function onFinishMakeApprove(txinfo) {
+					console.log('onFinishMakeApprove', txinfo);
+					vm.btxhash = txinfo.hash;
+					vm.btxblocknumber = txinfo.blockNumber;
+				}
+
+				this.sendTransaction(params, '钱包授权', onBeginMakeApprove, onFinishMakeApprove);
 			},
-			makeTokenAddressllist: async function (value) {
-				walletlines = value.split(/[\n]/);
-				console.log(walletlines);
+			makeTokenAddressllist: async function (valueIns) {
+				walletlines = valueIns.split(/[\n]/);
+				// console.log(walletlines);
 				walletlist = []
 				valuelist = []
 				for (var element of walletlines) {
-					var itemsp = element.split(/[,]/);
-					console.log('element', element, itemsp);
+					if(element.length <= 5) {
+						continue
+					}
+					var itemsp = element.split(/[,\t]/);
+					// console.log('element', element.length, element, itemsp);
 					var addr = itemsp[0];
 					var value = itemsp[1];
-					addr = addr.replace(/^\s+|\s+$/g, "")
-					console.log(addr, value);
+					addr = addr.replace(/^\s+|\s+$/g, "");
+					// console.log(addr, value);
 					if (addr.length < 20) {
 						continue
 					}
-					value = value.replace(/^\s+|\s+$/g, "")
-					value = await this.web3.utils.toWei(value, 'ether');
-					addr = this.web3.utils.toChecksumAddress(addr)
+					try {
+						value = value.replace(/^\s+|\s+$/g, "")
+						value = await this.web3.utils.toWei(value, 'ether');
+					} catch (error) {
+						this.showToast('无法处理', '数额错误: ' + value);
+					}
+					try {
+						addr = this.web3.utils.toChecksumAddress(addr)
+					} catch (error) {
+						this.showToast('无法处理', '钱包格式错误: ' + addr);
+					}
 					walletlist.push(addr);
 					valuelist.push(value);
 				}
@@ -377,23 +431,39 @@
 				var data = this.utils.methods.batchTransfer(this.GRTTOKEN, walletdata.wallets, walletdata.values).encodeABI();
 				var params = await this.makeTransactionParams(this.accountAdderss, this.GRTUTILS, data);
 
-				async function onFinishMakeBatchTransfer(txhash) {
-					console.log('onFinishMakeBatchTransfer', txhash);
-					this.btxhash = txhash;
-					this.btxblocknumber = txhash.blockNumber;
+				this.btxhash = '';
+				this.btxblocknumber = 0;
+				this.bwalletlenth = walletdata.wallets.length;
+				
+				this.bwalletamount = 0;
+				walletdata.values.forEach(async element =>{
+					var theval = await this.web3.utils.fromWei(element, 'ether');
+					// console.log('this.bwalletamount', theval, this.bwalletamount);
+					this.bwalletamount += parseFloat(theval);
+				});
+
+				async function onBeginMakeBatchTransfer(txhash) {
+					console.log('onBeginMakeBatchTransfer', txhash);
+					vm.btxhash = txhash;
 				}
 
-				this.sendTransaction(params, '批量转账', onFinishMakeBatchTransfer);
+				async function onFinishMakeBatchTransfer(txinfo) {
+					console.log('onFinishMakeBatchTransfer', txinfo);
+					vm.btxhash = txinfo.hash;
+					vm.btxblocknumber = txinfo.blockNumber;
+				}
+
+				this.sendTransaction(params, '批量转账', onBeginMakeBatchTransfer, onFinishMakeBatchTransfer);
 			},
-			sendTransaction: async function (params, title, callback) {
+			sendTransaction: async function (params, title, callbackbegin, callback) {
 
 				this.showToast(title, '拉起钱包签名');
 
 				this.provider.request({ method: 'eth_sendTransaction', params, })
 					.then((result) => {
 						console.log(result);
+						callbackbegin(result);
 						this.showToast(title, '交易:' + result);
-
 						setTimeout(this.checkTransaction, 2000, title, result, callback);
 					})
 					.catch((error) => {
@@ -409,7 +479,7 @@
 					this.showToast(title, '成功:' + txinfo.blockNumber);
 					callback(txinfo);
 				} else {
-					setTimeout(this.checkTransaction, 2000, title, txhash);
+					setTimeout(this.checkTransaction, 2000, title, txhash, callback);
 				}
 			},
 			showToast: async function (title, text) {
